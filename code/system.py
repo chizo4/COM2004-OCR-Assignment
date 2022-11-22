@@ -62,17 +62,6 @@ def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
     return reduced_data
 
 
-def select_features():
-    """
-    ADDED BUT NOT IMPLEMENTED YET!
-
-    extra function for the purpose of feature selection
-
-    select the best 20 features from PCA
-    """
-    pass
-
-
 def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) -> dict:
     """Process the labeled training data and return model parameters stored in a dictionary.
 
@@ -106,13 +95,86 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     # as column vector in the matrix v. w is _ since it is never used
     cov_matrix = np.cov(fvectors_train, rowvar=0)
     dim = cov_matrix.shape[0]
-    _, eigv = scipy.linalg.eigh(cov_matrix, eigvals=(dim - 21, dim - 2))
+    _, eigv = scipy.linalg.eigh(cov_matrix, eigvals=(dim - 40, dim - 1))
     eigv = np.fliplr(eigv)
-    # store eigenvectors in the model as well 
+    # call the new function for feature selection
+    pca_data = np.dot((fvectors_train - np.mean(fvectors_train)), eigv)
+    best_eigv_indices = select_pca_vectors(pca_data, model)
+    # refine th eigenvector matrix of 40 into the best selected 20
+    eigv = eigv[:, best_eigv_indices]
+    # store eigenvectors in the model as well (top 20 now)
     model["eigv_train"] = eigv.tolist()
+    # reduce the dimensions using the best 20 eigenvectors
     fvectors_train_reduced = reduce_dimensions(fvectors_train, model)
+    # update the model
     model["fvectors_train"] = fvectors_train_reduced.tolist()
     return model
+
+
+def select_pca_vectors(pca_data, model):
+    """
+    find the best 20 eigenvectors out of all 40 computed in the train data
+    """
+    # prepare all combinations of class labels
+    labels_list = np.array(model["labels_train"])
+    labels_set = sorted(set(labels_list))
+    labels_pairs = list(combinations(labels_set, 2))
+
+    # dictionary to keep track of the most valuable
+    # eigenvectors (out of all 40)
+    weighed_eigv_dict = {k: 0 for k in range(pca_data.shape[1])}
+
+    # test each possible pair of labels 
+    for pair in labels_pairs:
+        l1, l2 = pair
+        l1_data = pca_data[labels_list == l1, :]
+        l2_data = pca_data[labels_list == l2, :]
+        # specify coefficient that increases the dictionary (penalty?)
+        coeff = np.min([l1_data.shape[0], l2_data.shape[0]])
+
+        if coeff > 10:
+            # calc divergence and based on the coeff proceed furthermore
+            try:
+                div12 = calc_divergence(l1_data, l2_data)
+                sorted_indexes = np.argsort(-div12)
+                print(sorted_indexes)
+                best_eigv_indices = sorted_indexes[0:8]
+                # increase the dictionary where suitable 
+                for i in best_eigv_indices:
+                    weighed_eigv_dict[i] += coeff 
+            except ValueError:
+                continue
+        else:
+            continue
+    
+    # sort the dicitionary in descending order
+    sorted_weighed_eigv_desc = dict(sorted(weighed_eigv_dict.items(), key=lambda item: item[1])[::-1])
+    print(sorted_weighed_eigv_desc)
+    # get the best 20 eiegenvectors
+    selected_eigv_indices = list(sorted_weighed_eigv_desc.keys())[0:20]
+    return selected_eigv_indices
+
+
+def calc_divergence(class1, class2):
+    """
+    compute a vector of 1-D divergences between two classes
+
+    class1 - data matrix for class 1, each row is a sample
+    class2 - data matrix for class 2
+
+    returns: d12 - a vector of 1-D divergence scores
+
+    CODE SOLUTION INSPIRED BY THE ONE PROVIDED FOR LAB 6
+    """
+    # Compute the mean and variance of each feature vector element
+    m1 = np.mean(class1, axis=0)
+    m2 = np.mean(class2, axis=0)
+    v1 = np.var(class1, axis=0)
+    v2 = np.var(class2, axis=0)
+
+    # Plug mean and variances into the formula for 1-D divergence.
+    d12 = 0.5 * (v1 / v2 + v2 / v1 - 2) + 0.5 * (m1 - m2) * (m1 - m2) * (1.0 / v1 + 1.0 / v2)
+    return d12
 
 
 def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
@@ -170,7 +232,6 @@ def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]
     Returns:
         list[tuple]: A list of four-element tuples indicating the word positions.
     """
-    # WE NEED TO USE THE STORED EIGENVECTORS AND MEAN VALUE
-    #pcatest_data = np.dot((test_data - np.mean(train_data)), v)
+    # NEED TO DIVIDE THIS PART INTO 3 FUNCTIONS: row, column, diagonal for search
 
     return [(0, 0, 1, 1)] * len(words)
