@@ -1,76 +1,80 @@
-"""Dummy classification system.
+"""
+COM2004: Word Search Puzzle Solver Assignment
 
-Dummy solution the COM2004/3004 assignment.
+Author: Filip J. Cierkosz
 
-REWRITE THE FUNCTIONS BELOW AND REWRITE THIS DOCSTRING
-
-version: v1.0
+Development date: 10/2022-12/2022
 """
 
-from typing import List
 
 import numpy as np
+import scipy
+from typing import List
+from itertools import combinations
 from utils import utils
 from utils.utils import Puzzle
+
 
 # The required maximum number of dimensions for the feature vectors.
 N_DIMENSIONS = 20
 
 
 def load_puzzle_feature_vectors(image_dir: str, puzzles: List[Puzzle]) -> np.ndarray:
-    """Extract raw feature vectors for each puzzle from images in the image_dir.
-
-    OPTIONAL: ONLY REWRITE THIS FUNCTION IF YOU WANT TO REPLACE THE DEFAULT IMPLEMENTATION
+    """
+    Extract raw feature vectors for each puzzle from images in the image_dir.
 
     The raw feature vectors are just the pixel values of the images stored
     as vectors row by row. The code does a little bit of work to center the
     image region on the character and crop it to remove some of the background.
 
-    You are free to replace this function with your own implementation but
-    the implementation being called from utils.py should work fine. Look at
-    the code in utils.py if you are interested to see how it works. Note, this
-    will return feature vectors with more than 20 dimensions so you will
-    still need to implement a suitable feature reduction method.
-
     Args:
-        image_dir (str): Name of the directory where the puzzle images are stored.
-        puzzle (dict): Puzzle metadata providing name and size of each puzzle.
+        image_dir (str) : Name of the directory where the puzzle images are stored.
+        puzzle (dict) : Puzzle metadata providing name and size of each puzzle.
 
     Returns:
-        np.ndarray: The raw data matrix, i.e. rows of feature vectors.
-
+        np.ndarray : The raw data matrix, i.e. rows of feature vectors.
     """
     return utils.load_puzzle_feature_vectors(image_dir, puzzles)
 
 
 def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
-    """Reduce the dimensionality of a set of feature vectors down to N_DIMENSIONS.
-
-    REWRITE THIS FUNCTION AND THIS DOCSTRING
+    """
+    Reduce the dimensionality of a set of feature vectors down to N_DIMENSIONS.
 
     Takes the raw feature vectors and reduces them down to the required number of
     dimensions. Note, the `model` dictionary is provided as an argument so that
     you can pass information from the training stage, e.g. if using a dimensionality
     reduction technique that requires training, e.g. PCA.
 
-    The dummy implementation below simply returns the first N_DIMENSIONS columns.
-
     Args:
-        data (np.ndarray): The feature vectors to reduce.
-        model (dict): A dictionary storing the model data that may be needed.
+        data (np.ndarray) : The feature vectors to be reduced.
+        model (dict) : The dictionary that stores the model data.
 
     Returns:
-        np.ndarray: The reduced feature vectors.
+        np.ndarray : The appropriately reduced feature vectors.
     """
-
-    reduced_data = data[:, 0:N_DIMENSIONS]
+    # load mean to perform mean normalization
+    mean_train = model["mean_train"]
+    # load eiegenvectors to perform the pca dimensionality reduction
+    # so project the data into the N principal component axes (linear transform)
+    eigv_train = model["eigv_train"]
+    reduced_data = np.dot((data - mean_train), eigv_train)
     return reduced_data
+
+
+def select_features():
+    """
+    ADDED BUT NOT IMPLEMENTED YET!
+
+    extra function for the purpose of feature selection
+
+    select the best 20 features from PCA
+    """
+    pass
 
 
 def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) -> dict:
     """Process the labeled training data and return model parameters stored in a dictionary.
-
-    REWRITE THIS FUNCTION AND THIS DOCSTRING
 
     This is your classifier's training stage. You need to learn the model parameters
     from the training vectors and labels that are provided. The parameters of your
@@ -89,13 +93,23 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     Returns:
         dict: a dictionary storing the model data.
     """
+    # MIGHT BE POSSIBLE TO INVOKE THE FEATURE SELECTION FROM THIS STAGE
 
-    # The design of this is entirely up to you.
-    # Note, if you are using an instance based approach, e.g. a nearest neighbour,
-    # then the model will need to store the dimensionally-reduced training data and labels
-    # e.g. Storing training data labels and feature vectors in the model.
+    # basis for model setup
     model = {}
+    # just the labels
     model["labels_train"] = labels_train.tolist()
+    # compute the mean and store it in the model dictionary 
+    model["mean_train"] = np.mean(fvectors_train)
+    # construct covariance matrix from the training data 
+    # then compute the first 2-21 eigenvectors (principal component axes)
+    # as column vector in the matrix v. w is _ since it is never used
+    cov_matrix = np.cov(fvectors_train, rowvar=0)
+    dim = cov_matrix.shape[0]
+    _, eigv = scipy.linalg.eigh(cov_matrix, eigvals=(dim - 21, dim - 2))
+    eigv = np.fliplr(eigv)
+    # store eigenvectors in the model as well 
+    model["eigv_train"] = eigv.tolist()
     fvectors_train_reduced = reduce_dimensions(fvectors_train, model)
     model["fvectors_train"] = fvectors_train_reduced.tolist()
     return model
@@ -104,22 +118,31 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
 def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
     """Dummy implementation of classify squares.
 
-    REWRITE THIS FUNCTION AND THIS DOCSTRING
-
     This is the classification stage. You are passed a list of unlabelled feature
     vectors and the model parameters learn during the training stage. You need to
     classify each feature vector and return a list of labels.
 
-    In the dummy implementation, the label 'E' is returned for every square.
-
     Args:
-        fvectors_train (np.ndarray): feature vectors that are to be classified, stored as rows.
+        fvectors_test (np.ndarray): feature vectors that are to be classified, stored as rows.
         model (dict): a dictionary storing all the model parameters needed by your classifier.
 
     Returns:
         List[str]: A list of classifier labels, i.e. one label per input feature vector.
     """
-    return ["E"] * fvectors_test.shape[0]
+    fvectors_train = np.array(model["fvectors_train"])
+    labels_train = np.array(model["labels_train"])
+
+    # perform the nn classification 
+    x = np.dot(fvectors_test, fvectors_train.transpose())
+    mod_test = np.sqrt(np.sum(fvectors_test * fvectors_test, axis=1))
+    mod_train = np.sqrt(np.sum(fvectors_train * fvectors_train, axis=1))
+    # calc cosine distance
+    dist = x / np.outer(mod_test, mod_train.transpose())  
+    nearest = np.argmax(dist, axis=1)
+    # mdist = np.max(dist, axis=1)
+    # assign labels for the test data
+    test_labels = labels_train[nearest]
+    return test_labels
 
 
 def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]:
@@ -147,4 +170,7 @@ def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]
     Returns:
         list[tuple]: A list of four-element tuples indicating the word positions.
     """
+    # WE NEED TO USE THE STORED EIGENVECTORS AND MEAN VALUE
+    #pcatest_data = np.dot((test_data - np.mean(train_data)), v)
+
     return [(0, 0, 1, 1)] * len(words)
