@@ -238,56 +238,51 @@ def calc_divergence(fvectors_class1: np.ndarray, fvectors_class2: np.ndarray) ->
 
 def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
     """
-    Docs here...
-    """
-    """Dummy implementation of classify squares.
+    Classify unlabelled feature vectors... from the test data
 
-    This is the classification stage. You are passed a list of unlabelled feature
-    vectors and the model parameters learn during the training stage. You need to
-    classify each feature vector and return a list of labels.
+    in k selection: if max counted has several occurences then select the 
+    best single one even if all are counted as one, the first element will be considered
 
     Args:
-        fvectors_test (np.ndarray): feature vectors that are to be classified, stored as rows.
-        model (dict): a dictionary storing all the model parameters needed by your classifier.
+        fvectors_test (np.ndarray) : Feature vectors of the test dataset that will 
+                                     be classified (feature vectors stored as rows).
+        model (dict) : Dictionary that stores the essential information learned
+                       during the training stage (e.g. reduced feature vectors).
 
     Returns:
-        List[str]: A list of classifier labels, i.e. one label per input feature vector.
+        test_labels (List[str]): A list of classified class labels; one class 
+                                 label (alphabet letter 'A'-'Z') per feature vector.
     """
+    # Load model data.
     fvectors_train = np.array(model["fvectors_train"])
     labels_train = np.array(model["labels_train"])
 
-    # perform the nn classification 
+    K = 3 # 9 gives 57% for low quality (no binarization)
+
+    # KNN classification
     x = np.dot(fvectors_test, fvectors_train.transpose())
-    mod_test = np.sqrt(np.sum(fvectors_test * fvectors_test, axis=1))
-    mod_train = np.sqrt(np.sum(fvectors_train * fvectors_train, axis=1))
-    # calc cosine distance
+    mod_test = np.sqrt(
+        np.sum(fvectors_test * fvectors_test, axis=1)
+    )
+    mod_train = np.sqrt(
+        np.sum(fvectors_train * fvectors_train, axis=1)
+    )
+    # Calculate the cosine distance.
     dist = x / np.outer(mod_test, mod_train.transpose())
-    nearest = np.argmax(dist, axis=1)
-
-    # trying to consider k nearest neighbours
-    K = 3 # 9 gives 57% for low quality
+    # nearest = np.argmax(dist, axis=1)
+    # test_labels = labels_train[nearest]
+    # Select K-nearest neighbors.
     k_nearest = np.argsort((-dist), axis=1)[:, 0:K]
-    # map sample to an appropriate label
-    nearest_beta = []
+    test_labels = []
 
-    # check the labels
-    # weighed knn
+    # WEIGHED KNN???
     for kn in k_nearest:
-        # print(labels_train[kn[0]])
         k_labels = labels_train[kn]
         labels_counted = Counter(k_labels)
-        # print(labels_counted)
+        kn_best = max(labels_counted, key=labels_counted.get)
+        test_labels.append(kn_best)
 
-        # if max counted has several occurences then select the best single one
-        # even if all are counted as one, we will consider the first element 
-        currbest = max(labels_counted, key=labels_counted.get)
-        nearest_beta.append(currbest)
-
-    # print(nearest_beta)
-
-    # assign labels for the test data
-    # test_labels = labels_train[nearest]
-    return nearest_beta
+    return test_labels
 
 
 def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]:
