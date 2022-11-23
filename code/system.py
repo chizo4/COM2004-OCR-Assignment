@@ -107,7 +107,9 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     pca_data = np.dot(
         (fvectors_train - np.mean(fvectors_train)), eigv
     )
-    selected_eigv_indices = select_features_pca(pca_data, N_DIMENSIONS, model)
+    selected_eigv_indices = select_features_pca(
+        pca_data, N_DIMENSIONS, model
+    )
     # Select the best 20 eiegenvectors, out of 40 computed. Store them in model.
     eigv = eigv[:, selected_eigv_indices]
     model["eigv_train"] = eigv.tolist()
@@ -115,6 +117,42 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     fvectors_train_reduced = reduce_dimensions(fvectors_train, model)
     model["fvectors_train"] = fvectors_train_reduced.tolist()
     return model
+
+def binarize_data(fvectors: np.ndarray) -> np.ndarray:
+    """
+    Data pre-processing method based on the concept of binarization.
+    It means that a matrix of pixels of a grayscale image is converted into 
+    a binarized matrix, where each pixel is either assigned to the max value
+    in the dataset (i.e. the most white), or to the min value, which marks 
+    the blackest pixel. The classification of a pixel as either black or white
+    is based on the value of thresh, which is...
+
+    Args:
+        fvectors (np.ndarray): Unbinarized feature vectors, i.e. in grayscale format.
+
+    Returns:
+        fvectors_binarized (np.ndarray): Binarized feature vectors, i.e. each pixel
+                                         is converted either to black (min value 
+                                         in data), or white (max value in data).
+    """
+    # matplotlib.use("TkAgg")
+    # imgold = fvectors[25, :].reshape(20, 20)
+    # plt.imshow(imgold, cmap="gray")
+    # plt.show()
+    for y in range(fvectors.shape[0]):
+        thresh = np.mean(fvectors[y, :]) * 1.5
+        black = np.min(fvectors[y, :])
+        white = np.max(fvectors[y, :])
+        fvectors[y, :] = np.where(
+            fvectors[y, :] > thresh, white, fvectors[y, :]
+        )
+        fvectors[y, :] = np.where(
+            fvectors[y, :] <= thresh, black, fvectors[y, :]
+        )
+    # imgnew = fvectors[25, :].reshape(20, 20)
+    # plt.imshow(imgnew, cmap="gray")
+    # plt.show()
+    return fvectors
 
 
 def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray:
@@ -172,42 +210,6 @@ def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray
     )
     nbest_eigv_indices = list(sorted_desc_weigh_eigv_dict.keys())
     return nbest_eigv_indices[0:N]
-
-
-def binarize_data(fvectors: np.ndarray) -> np.ndarray:
-    """
-    Data pre-processing method based on the concept of binarization.
-    It means that a matrix of pixels of a grayscale image is converted into 
-    a binarized matrix, where each pixel is either assigned to the max value
-    in the dataset (i.e. the most white), or to the min value, which marks 
-    the blackest pixel. The classification of a pixel as either black or white
-    is based on the value of thresh, which is...
-
-    Args:
-        fvectors (np.ndarray): Unbinarized feature vectors, i.e. in grayscale format.
-
-    Returns:
-        fvectors_binarized (np.ndarray): Binarized feature vectors, i.e. each pixel
-                                         is converted either to black (min value 
-                                         in data), or white (max value in data).
-    """
-    # matplotlib.use("TkAgg")
-    # imgold = fvectors[25, :].reshape(20, 20)
-    # plt.imshow(imgold, cmap="gray")
-    # plt.show()
-    for y in range(fvectors.shape[0]):
-        thresh = np.mean(fvectors[y, :]) * 1.5
-        black = np.min(fvectors[y, :])
-        white = np.max(fvectors[y, :])
-        for x in range(fvectors.shape[1]):
-            if fvectors[y, x] > thresh:
-                fvectors[y, x] = white
-            else:
-                fvectors[y, x] = black
-    # imgnew = fvectors[25, :].reshape(20, 20)
-    # plt.imshow(imgnew, cmap="gray")
-    # plt.show()
-    return fvectors
 
 
 def calc_divergence(fvectors_class1: np.ndarray, fvectors_class2: np.ndarray) -> np.ndarray:
