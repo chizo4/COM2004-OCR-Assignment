@@ -16,7 +16,7 @@ from utils import utils
 from utils.utils import Puzzle
 
 
-# The required maximum number of dimensions for the feature vectors.
+# The required maximum number of dimensions for feature vectors.
 N_DIMENSIONS = 20
 
 
@@ -41,23 +41,22 @@ def load_puzzle_feature_vectors(image_dir: str, puzzles: List[Puzzle]) -> np.nda
 def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
     """
     Perform dimensionality reduction on the set of feature vector down
-    to specified N_DIMENSIONS (20) using the best 20 eigenvectors (principal
-    component axes) that were selected during the training stage using PCA
-    approach.
+    to specified N_DIMENSIONS (i.e. 20) using the best N (i.e. 20 again) 
+    eigenvectors (principal component axes) that were selected during 
+    the training stage using Principal Component Analysis approach.
 
-    In essence, the function takes raw feature vectors of a data set and 
-    reduces them down to N_DIMENSIONS (20).
+    Essentially, the function takes raw feature vectors of M dimensions and
+    reduces them down to the specified N_DIMENSIONS (i.e. 20).
 
     Args:
-        data (np.ndarray) : Feature vectors to be reduced.
-        model (dict) : Dictionary that stores the essential model data from training.
+        data (np.ndarray) : Raw feature vectors to be reduced.
+        model (dict) : Dictionary that stores the useful model data from training (e.g mean).
 
     Returns:
-        reduced_data (np.ndarray) : Feature vectors (input data) reduced to N_DIMENSIONS.
+        reduced_data (np.ndarray) : Feature vectors reduced to N_DIMENSIONS.
     """
-    # Use mean to perform mean normalization, then use eigenvectors to perform 
-    # the PCA dimensionality reduction, i.e. to project the data into the N 
-    # principal component axes (it's a linear transform).
+    # Perform mean normalization, then use eigenvectors to to project 
+    # the data into the N principal component axes (linear transform).
     mean_train = model["mean_train"]
     eigv_train = model["eigv_train"]
     reduced_data = np.dot((data - mean_train), eigv_train)
@@ -70,7 +69,7 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     Start by computing 40 eigenvectors for 40 highest eigenvalues, then use them
     to perform a feature selection, i.e. to select the 20 most useful eiegenvectors
     calling a function dedicated for this task. Finally, after learning the model 
-    parameters using the Prinicipal Component Analysis approach, store the valuable
+    parameters using the Prinicipal Component Analysis approach, store the most valuable
     information (i.e. labels, mean, top eiegenvectors, reduced training feature vectors) 
     in a model dicionary in order to use it as a basis for the latter classification. 
 
@@ -85,6 +84,7 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     model = {}
     model["labels_train"] = labels_train.tolist()
     model["mean_train"] = np.mean(fvectors_train)
+
     # Compute covariance matrix and use it to calculate 40 
     # eigenvectors corresponding to the 40 greatest eigenvalues.
     cov_matrix = np.cov(fvectors_train, rowvar=0)
@@ -93,6 +93,7 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
         cov_matrix, eigvals=(N_COV - 40, N_COV - 1)
     )
     eigv = np.fliplr(eigv)
+
     # Apply mean normalization for the 40 eiegenvectors, and then perform
     # feature selection where the best N (20) eigenvectors are selected.
     pca_data = np.dot(
@@ -103,6 +104,7 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     )
     eigv = eigv[:, selected_eigv_indices]
     model["eigv_train"] = eigv.tolist()
+
     # Reduce dimensions of the training set (based on the top N eigv).
     fvectors_train_reduced = reduce_dimensions(fvectors_train, model)
     model["fvectors_train"] = fvectors_train_reduced.tolist()
@@ -174,7 +176,6 @@ def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray
         nbest_eigv_indices (np.ndarray) : Indices of the selected top N eiegenvectors.
     """
     MIN_DATA_FREQ = 10
-
     weigh_eigv_dict = {k: 0 for k in range(pca_data.shape[1])}
     labels_list = np.array(model["labels_train"])
     labels_set = sorted(set(labels_list))
@@ -259,7 +260,6 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
 
     K = 3 # int(math.sqrt(fvectors_test.shape[0])) # 9 gives 57% for low quality
 
-    # Perform weighted KNN classification. NB: w = 1 / d
     x = np.dot(fvectors_test, fvectors_train.transpose())
     mod_test = np.sqrt(
         np.sum(fvectors_test * fvectors_test, axis=1)
@@ -303,34 +303,28 @@ def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]
     """
     words = [w.upper() for w in words]
     words_pos = []
+    wpos_score_dict = {}
 
     # search for words using separate approaches: horizontal, vertical, diagonal
     # select the one with the highest score
     for word in words:
         # get best match for row
         r_pos, r_score = search_rows(word, labels)
-        # r_pos, r_score = search_rows(word, labels)
         # get best match for column
-        # c_pos, c_score = search_cols(word, labels)
+        c_pos, c_score = search_cols(word, labels)
+        # wpos_score_dict[r_pos] = r_score
+        # wpos_score_dict[c_pos] = c_score
         # get best match for diagonal
         # d_pos, d_score = search_diag(word, labels)
 
-        words_pos.append(r_pos)
+        if r_score > c_score:
+            words_pos.append(r_pos)
+        else:
+            words_pos.append(c_pos)
 
-
-
-        # 1. PERFORM SIMPLE SEARCH IN ALL DIRECTIONS
-        # w_pos = search_rows(w, labels)
-
-        # if w_pos == (0,0,0,0):
-        #     w_pos = search_cols(w, labels)
-
-        # words_pos.append(w_pos)
-
-        # if not word_pos:
-        #     word_pos = search_diag()
-    # print(words_pos)
-
+        # words_pos.append(r_pos)
+    print(words_pos)
+    print('here')
 
     return words_pos
 
@@ -351,34 +345,35 @@ def find_closest_match(searched_word, word_guesses):
 
     # rank each guess checking how many letters are correct
     for wg in word_guesses:
-        rank_wguess_dict[wg] = sum(wg[i] == searched_word[i] for i in range(len(wg)))
+        wg_score = sum(wg[i] == searched_word[i] for i in range(len(wg)))
+        rank_wguess_dict[wg] = wg_score
     
     closest_match = max(rank_wguess_dict, key=rank_wguess_dict.get)
     cm_score = rank_wguess_dict[closest_match]
     return closest_match, cm_score
 
 
-def search_rows(word: str, label_grid: np.ndarray):
+def search_rows(word: str, label_grid: np.ndarray): # -> tuple and int
     """
-    Search for a word through all rows.
+    Search for a word through each and every row.
     """
-    # join charcters of each row to represent it as a string
-    rows_joined = [''.join(label_grid[r, :]) for r in range(label_grid.shape[0])]
+    nrow, ncol = label_grid.shape
     # all possible indices of columns in the grid.
-    icols = [icol for icol in range(label_grid.shape[1] + 1)]
+    icols = [icol for icol in range(ncol + 1)]
     # compute all possible positions of the input word in the rows of
     # the label grid that match the length of the matched word (n)
     expected_word_indices = [
-        (r, c1, r, c2) for r in range(label_grid.shape[0]) 
-            for c1, c2 in combinations(icols, 2) if abs(c1 - c2) == len(word)
+        (r, c1, r, c2) for r in range(nrow) for c1, c2 in combinations(icols, 2) 
+            if abs(c1 - c2) == len(word)
     ]
     # build each possible string and map it with its position in the grid
     wmatch_pos_dict = {
-        rows_joined[r][c1:c2]: (r, c1, r, (c2 - 1)) for r, c1, r, c2 in expected_word_indices
+        "".join(label_grid[r, c1:c2]): (r, c1, r, (c2 - 1)) 
+            for r, c1, r, c2 in expected_word_indices
     }
     # build each possible reverse and map its position in the grid
     wmatch_rev_pos_dict = {
-        rows_joined[r][::-1][c1:c2]: (r, (len(rows_joined[r]) - c1 - 1), r, (len(rows_joined[r]) - c2)) 
+        "".join(label_grid[r, c1:c2][::-1]): (r, (c2 - 1), r, c1) 
             for r, c1, r, c2 in expected_word_indices
     }
     # concat both dictionaries to have a full list of all guesses
@@ -391,15 +386,44 @@ def search_rows(word: str, label_grid: np.ndarray):
     return cm_pos, cm_score
 
 
-def search_cols(word: str, label_grid: np.ndarray):
-    pass
+def search_cols(word: str, label_grid: np.ndarray): # tuple and int
+    """
+    Search for a word through all columns of the puzzle grid of labels.
+    """
+    nrow, ncol = label_grid.shape
+    # all possible indices of rows in the grid.
+    irows = [irow for irow in range(nrow + 1)]
+    # compute all possible positions of the input word in the rows of
+    # the label grid that match the length of the matched word (n)
+    expected_word_indices = [
+        (r1, c, r2, c) for c in range(ncol) for r1, r2 in combinations(irows, 2) 
+            if abs(r1 - r2) == len(word)
+    ]
+    # build each possible string and map it with its position in the grid
+    wmatch_pos_dict = {
+        "".join(label_grid[r1:r2, c]): (r1, c, (r2 - 1), c) 
+            for r1, c, r2, c in expected_word_indices
+    }
+    # build each possible reverse and map its position in the grid
+    wmatch_rev_pos_dict = {
+        "".join(label_grid[r1:r2, c][::-1]): ((r2 - 1), c, r1, c) 
+            for r1, c, r2, c in expected_word_indices
+    }
+    # concat both dictionaries to have a full list of all guesses
+    # any repetetions of guesses are removed at this stage 
+    # i.e. only one unique combination considered
+    wmatch_pos_dict.update(wmatch_rev_pos_dict)
+    # find the closest match among all
+    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
+    cm_pos = wmatch_pos_dict[closest_match]
+    return cm_pos, cm_score
 
 
 def search_diag(word: str, label_grid: np.ndarray):
+    """
+    Search through diagonals (tough).
+    """
     pass
-
-
-
 
 
 
