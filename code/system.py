@@ -11,13 +11,9 @@ import numpy as np
 import scipy
 from typing import List
 from collections import Counter
-from itertools import combinations
+from itertools import combinations, permutations
 from utils import utils
 from utils.utils import Puzzle
-
-# DEBUGGING - DELETE THIS LATER
-import matplotlib.pyplot as plt
-import matplotlib
 
 
 # The required maximum number of dimensions for the feature vectors.
@@ -71,7 +67,7 @@ def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
 def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) -> dict:
     """
     Perform the classifier's training stage by processing the training data. 
-    Start by computing 40 eiegenvectors for 40 highest eigenvalues, then use them
+    Start by computing 40 eigenvectors for 40 highest eigenvalues, then use them
     to perform a feature selection, i.e. to select the 20 most useful eiegenvectors
     calling a function dedicated for this task. Finally, after learning the model 
     parameters using the Prinicipal Component Analysis approach, store the valuable
@@ -88,38 +84,35 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     """
     model = {}
     model["labels_train"] = labels_train.tolist()
-
-    # PERFORM BINARIZATION???
-    # fvectors_train = binarize_data(fvectors_train)
-
-    # Compute the mean, as it will be later used for dimensionality reduction.
     model["mean_train"] = np.mean(fvectors_train)
-    # Construct covariance matrix and use it to compute the 40 eigenvectors 
-    # corresponding to the 40 highest eigenvalues.
+    # Compute covariance matrix and use it to calculate 40 
+    # eigenvectors corresponding to the 40 greatest eigenvalues.
     cov_matrix = np.cov(fvectors_train, rowvar=0)
-    cov_dim = cov_matrix.shape[0]
+    N_COV = cov_matrix.shape[0]
     _, eigv = scipy.linalg.eigh(
-        cov_matrix, eigvals=(cov_dim - 40, cov_dim - 1)
+        cov_matrix, eigvals=(N_COV - 40, N_COV - 1)
     )
     eigv = np.fliplr(eigv)
-    # Perform mean normalization, currently for the 40 eiegenvectors.
-    # Use it to perform feature selection, i.e. find 20 most useful eigv out of 40.
+    # Apply mean normalization for the 40 eiegenvectors, and then perform
+    # feature selection where the best N (20) eigenvectors are selected.
     pca_data = np.dot(
         (fvectors_train - np.mean(fvectors_train)), eigv
     )
     selected_eigv_indices = select_features_pca(
         pca_data, N_DIMENSIONS, model
     )
-    # Select the best 20 eiegenvectors, out of 40 computed. Store them in model.
     eigv = eigv[:, selected_eigv_indices]
     model["eigv_train"] = eigv.tolist()
-    # Reduce dimensions of the training set, which is based on top 20 eigv.
+    # Reduce dimensions of the training set (based on the top N eigv).
     fvectors_train_reduced = reduce_dimensions(fvectors_train, model)
     model["fvectors_train"] = fvectors_train_reduced.tolist()
     return model
 
+
 def binarize_data(fvectors: np.ndarray) -> np.ndarray:
     """
+    USEFUL CONCEPT IN CV - BUT NOT USEFUL IN TRAINING STAGE!
+
     Data pre-processing method based on the concept of binarization.
     It means that a matrix of pixels of a grayscale image is converted into 
     a binarized matrix, where each pixel is either assigned to the max value
@@ -136,7 +129,7 @@ def binarize_data(fvectors: np.ndarray) -> np.ndarray:
                                          in data), or white (max value in data).
     """
     # matplotlib.use("TkAgg")
-    # imgold = fvectors[25, :].reshape(20, 20)
+    imgold = fvectors[25, :].reshape(20, 20)
     # plt.imshow(imgold, cmap="gray")
     # plt.show()
     for y in range(fvectors.shape[0]):
@@ -149,7 +142,7 @@ def binarize_data(fvectors: np.ndarray) -> np.ndarray:
         fvectors[y, :] = np.where(
             fvectors[y, :] <= thresh, black, fvectors[y, :]
         )
-    # imgnew = fvectors[25, :].reshape(20, 20)
+    imgnew = fvectors[25, :].reshape(20, 20)
     # plt.imshow(imgnew, cmap="gray")
     # plt.show()
     return fvectors
@@ -187,6 +180,8 @@ def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray
     labels_set = sorted(set(labels_list))
     labels_pairs = list(combinations(labels_set, 2))
 
+    # Rank each pair's eigenvectors using the 1D divergence matrix
+    # if the data frequency criteria is met by a pair.
     for pair in labels_pairs:
         l1, l2 = pair
         l1_data = pca_data[labels_list == l1, :]
@@ -219,8 +214,8 @@ def calc_divergence(fvectors_class1: np.ndarray, fvectors_class2: np.ndarray) ->
     Then, use them in the formula to compute the 1D divergence.
 
     Args:
-        fvectors_class1 (np.ndarray) : Feature vectors of class 1 (each row is a sample).
-        fvectors_class2 (np.ndarray) : Feature vectors of class 2 (each row is a sample).
+        fvectors_class1 (np.ndarray) : Feature vectors of class 1 (a row is a sample).
+        fvectors_class2 (np.ndarray) : Feature vectors of class 2 (a row is a sample).
 
     Returns:
         div12 (np.ndarray) : Vector of 1D divergence scores between two classes.
@@ -253,13 +248,18 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
         test_labels (List[str]): A list of classified class labels; one class 
                                  label (alphabet letter 'A'-'Z') per feature vector.
     """
-    # Load model data.
+    # SIGNAL TO NOISE???
+    # mean = np.mean(fvectors_test, axis=1)
+    # std = np.std(fvectors_test, axis=1)
+    # signal_to_noise = np.where(std == 0, 0, mean / std)
+    # print(np.mean(signal_to_noise))
+
     fvectors_train = np.array(model["fvectors_train"])
     labels_train = np.array(model["labels_train"])
 
-    K = 3 # 9 gives 57% for low quality (no binarization)
+    K = 3 # int(math.sqrt(fvectors_test.shape[0])) # 9 gives 57% for low quality
 
-    # KNN classification
+    # Perform weighted KNN classification. NB: w = 1 / d
     x = np.dot(fvectors_test, fvectors_train.transpose())
     mod_test = np.sqrt(
         np.sum(fvectors_test * fvectors_test, axis=1)
@@ -269,15 +269,14 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
     )
     # Calculate the cosine distance.
     dist = x / np.outer(mod_test, mod_train.transpose())
-    # nearest = np.argmax(dist, axis=1)
-    # test_labels = labels_train[nearest]
-    # Select K-nearest neighbors.
-    k_nearest = np.argsort((-dist), axis=1)[:, 0:K]
+    # Select K-nearest neighbors (found by selecting 5 smallest distances for each sample). 
+    k_nearest_indices = np.argsort((-dist), axis=1)[:, 0:K]
+    # k_nearest_vals = np.sort((-dist), axis=1)[:, 0:K]
     test_labels = []
 
-    # WEIGHED KNN???
-    for kn in k_nearest:
-        k_labels = labels_train[kn]
+    # WEIGHTED KNN??
+    for i in k_nearest_indices:
+        k_labels = labels_train[i]
         labels_counted = Counter(k_labels)
         kn_best = max(labels_counted, key=labels_counted.get)
         test_labels.append(kn_best)
@@ -286,30 +285,164 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
 
 
 def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]:
-    """Dummy implementation of find_words.
+    """
+    Search for words in the grid of classified letter labels. Letter labels
+    are passed in 2D array. You should return (start_row, start_col, end_row, end_col)
+    for each word
 
-    REWRITE THIS FUNCTION AND THIS DOCSTRING
-
-    This function searches for the words in the grid of classified letter labels.
-    You are passed the letter labels as a 2-D array and a list of words to search for.
-    You need to return a position for each word. The word position should be
-    represented as tuples of the form (start_row, start_col, end_row, end_col).
-
-    Note, the model dict that was learnt during training has also been passed to this
-    function. Most simple implementations will not need to use this but it is provided
-    in case you have ideas that need it.
-
-    In the dummy implementation, the position (0, 0, 1, 1) is returned for every word.
+    Might need the model dict?
 
     Args:
-        labels (np.ndarray): 2-D array storing the character in each
-            square of the wordsearch puzzle.
-        words (list[str]): A list of words to find in the wordsearch puzzle.
-        model (dict): The model parameters learned during training.
+        labels (np.ndarray) : 2D array that stores the character in each square 
+                              of the wordsearch puzzle.
+        words (list[str]) : A list of words to find in the wordsearch puzzle.
+        model (dict) : The model parameters learned during training.
 
     Returns:
         list[tuple]: A list of four-element tuples indicating the word positions.
     """
-    # NEED TO DIVIDE THIS PART INTO 3 FUNCTIONS: row, column, diagonal for search
+    words = [w.upper() for w in words]
+    words_pos = []
 
-    return [(0, 0, 1, 1)] * len(words)
+    # search for words using separate approaches: horizontal, vertical, diagonal
+    # select the one with the highest score
+    for word in words:
+        # get best match for row
+        r_pos, r_score = search_rows(word, labels)
+        # r_pos, r_score = search_rows(word, labels)
+        # get best match for column
+        # c_pos, c_score = search_cols(word, labels)
+        # get best match for diagonal
+        # d_pos, d_score = search_diag(word, labels)
+
+        words_pos.append(r_pos)
+
+
+
+        # 1. PERFORM SIMPLE SEARCH IN ALL DIRECTIONS
+        # w_pos = search_rows(w, labels)
+
+        # if w_pos == (0,0,0,0):
+        #     w_pos = search_cols(w, labels)
+
+        # words_pos.append(w_pos)
+
+        # if not word_pos:
+        #     word_pos = search_diag()
+    # print(words_pos)
+
+
+    return words_pos
+
+
+def find_closest_match(searched_word, word_guesses):
+    """
+
+    find the closest match for a word
+
+    word : word to be matched
+    word_guesses : list of guessed words that are matching the length of word
+
+    closest_match : closest match of the searched word
+    score : 
+    """
+    # build a dictionary to rank each guess
+    rank_wguess_dict = {}
+
+    # rank each guess checking how many letters are correct
+    for wg in word_guesses:
+        rank_wguess_dict[wg] = sum(wg[i] == searched_word[i] for i in range(len(wg)))
+    
+    closest_match = max(rank_wguess_dict, key=rank_wguess_dict.get)
+    cm_score = rank_wguess_dict[closest_match]
+    return closest_match, cm_score
+
+
+def search_rows(word: str, label_grid: np.ndarray):
+    """
+    Search for a word through all rows.
+    """
+    # join charcters of each row to represent it as a string
+    rows_joined = [''.join(label_grid[r, :]) for r in range(label_grid.shape[0])]
+    # all possible indices of columns in the grid.
+    icols = [icol for icol in range(label_grid.shape[1] + 1)]
+    # compute all possible positions of the input word in the rows of
+    # the label grid that match the length of the matched word (n)
+    expected_word_indices = [
+        (r, c1, r, c2) for r in range(label_grid.shape[0]) 
+            for c1, c2 in combinations(icols, 2) if abs(c1 - c2) == len(word)
+    ]
+    # build each possible string and map it with its position in the grid
+    wmatch_pos_dict = {
+        rows_joined[r][c1:c2]: (r, c1, r, (c2 - 1)) for r, c1, r, c2 in expected_word_indices
+    }
+    # build each possible reverse and map its position in the grid
+    wmatch_rev_pos_dict = {
+        rows_joined[r][::-1][c1:c2]: (r, (len(rows_joined[r]) - c1 - 1), r, (len(rows_joined[r]) - c2)) 
+            for r, c1, r, c2 in expected_word_indices
+    }
+    # concat both dictionaries to have a full list of all guesses
+    # any repetetions of guesses are removed at this stage 
+    # i.e. only one unique combination considered
+    wmatch_pos_dict.update(wmatch_rev_pos_dict)
+    # find the closest match among all
+    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
+    cm_pos = wmatch_pos_dict[closest_match]
+    return cm_pos, cm_score
+
+
+def search_cols(word: str, label_grid: np.ndarray):
+    pass
+
+
+def search_diag(word: str, label_grid: np.ndarray):
+    pass
+
+
+
+
+
+
+# ARCHIVED
+# def search_rows(word, label_grid):
+#     """
+#     Search for the current word through rows of the grid.
+#     """
+#     for r in range(label_grid.shape[0]):
+#         r_joined = ''.join(label_grid[r, :])
+#         word_match = r_joined.find(word)
+#         word_rev_match = r_joined.find(word[::-1])
+
+#         if word_match != -1:
+#             c1 = word_match
+#             c2 = word_match + (len(word) - 1)
+#             return (r, c1, r, c2)
+#         elif word_rev_match != -1:
+#             c1 = word_rev_match + (len(word) - 1)
+#             c2 = word_rev_match
+#             return (r, c1, r, c2)
+
+#     return (0,0,0,0)
+
+
+# def search_cols(word, label_grid):
+#     """
+#     Search for the current word through columns of the grid.
+#     """
+#     for c in range(label_grid.shape[1]):
+#         c_joined = ''.join(label_grid[:, c])
+
+#         word_match = c_joined.find(word)
+#         word_rev_match = c_joined.find(word[::-1])
+
+#         # in case there is a palindrome, it does not matter which one is returned...
+#         if word_match != -1:
+#             r1 = word_match
+#             r2 = word_match + (len(word) - 1)
+#             return (r1, c, r2, c)
+#         elif word_rev_match != -1:
+#             r1 = word_rev_match + (len(word) - 1)
+#             r2 = word_rev_match
+#             return (r1, c, r2, c)
+
+#     return (0,0,0,0)
