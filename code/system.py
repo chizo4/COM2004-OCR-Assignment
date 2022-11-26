@@ -345,6 +345,10 @@ def find_closest_match(searched_word, word_guesses):
 
     find the closest match for a word
 
+    rank each word by levenshtein distance (used in search engines)
+    to find a match that needs the least number of operations to turn
+    it into the searched word
+
     word : word to be matched
     word_guesses : list of guessed words that are matching the length of word
 
@@ -361,115 +365,8 @@ def find_closest_match(searched_word, word_guesses):
     
     closest_match = max(rank_wguess_dict, key=rank_wguess_dict.get)
     cm_score = rank_wguess_dict[closest_match]
+    print([rank_wguess_dict[i] for i in rank_wguess_dict.keys() if rank_wguess_dict[i] == cm_score])
     return closest_match, cm_score
-
-
-def search_rows(word: str, label_grid: np.ndarray): # -> tuple and int
-    """
-    Search for a word through each and every row.
-    """
-    nrow, ncol = label_grid.shape
-    # all possible indices of columns in the grid.
-    icols = [icol for icol in range(ncol + 1)]
-    # compute all possible positions of the input word in the rows of
-    # the label grid that match the length of the matched word (n)
-    expected_word_indices = [
-        (r, c1, r, c2) for r in range(nrow) for c1, c2 in combinations(icols, 2) 
-            if abs(c1 - c2) == len(word)
-    ]
-    # build each possible string and map it with its position in the grid
-    wmatch_pos_dict = {
-        "".join(label_grid[r, c1:c2]): (r, c1, r, (c2 - 1)) 
-            for r, c1, r, c2 in expected_word_indices
-    }
-    # build each possible reverse and map its position in the grid
-    wmatch_rev_pos_dict = {
-        "".join(label_grid[r, c1:c2][::-1]): (r, (c2 - 1), r, c1) 
-            for r, c1, r, c2 in expected_word_indices
-    }
-    # concat both dictionaries to have a full list of all guesses
-    # any repetetions of guesses are removed at this stage 
-    # i.e. only one unique combination considered
-    wmatch_pos_dict.update(wmatch_rev_pos_dict)
-    # find the closest match among all
-    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
-    cm_pos = wmatch_pos_dict[closest_match]
-    return cm_pos, cm_score
-
-
-def search_cols(word: str, label_grid: np.ndarray): # tuple and int
-    """
-    Search for a word through all columns of the puzzle grid of labels.
-    """
-    nrow, ncol = label_grid.shape
-    # all possible indices of rows in the grid.
-    irows = [irow for irow in range(nrow + 1)]
-    # compute all possible positions of the input word in the rows of
-    # the label grid that match the length of the matched word (n)
-    expected_word_indices = [
-        (r1, c, r2, c) for c in range(ncol) for r1, r2 in combinations(irows, 2) 
-            if abs(r1 - r2) == len(word)
-    ]
-    # build each possible string and map it with its position in the grid
-    wmatch_pos_dict = {
-        "".join(label_grid[r1:r2, c]): (r1, c, (r2 - 1), c) 
-            for r1, c, r2, c in expected_word_indices
-    }
-    # build each possible reverse and map its position in the grid
-    wmatch_rev_pos_dict = {
-        "".join(label_grid[r1:r2, c][::-1]): ((r2 - 1), c, r1, c) 
-            for r1, c, r2, c in expected_word_indices
-    }
-    # concat both dictionaries to have a full list of all guesses
-    # any repetetions of guesses are removed at this stage 
-    # i.e. only one unique combination considered
-    wmatch_pos_dict.update(wmatch_rev_pos_dict)
-    # find the closest match among all
-    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
-    cm_pos = wmatch_pos_dict[closest_match]
-    return cm_pos, cm_score
-
-
-def search_diag(word: str, label_grid: np.ndarray):
-    """
-    Search through diagonals (tough).
-    """
-    nrow, ncol = label_grid.shape
-    # all possible indices of rows and cols in the grid.
-    irows = [irow for irow in range(nrow)]
-    icols = [icol for icol in range(ncol)]
-    # print(irows)
-    # compute all possible positions of the input word in the rows and cols of
-    # the label grid that match the length of the matched word (n)
-    expected_word_indices1 = [
-        (r1, c1, r2, c2) for c1, c2 in permutations(icols, 2) for r1, r2 in permutations(irows, 2) 
-            if abs(r1 - r2) == len(word) and abs(c1 - c2) == len(word)
-    ]
-    expected_word_indices2 = [
-        (r1, c1, r2, c2) for r1, r2 in permutations(irows, 2) for c1, c2 in permutations(icols, 2)
-            if abs(r1 - r2) == len(word) and abs(c1 - c2) == len(word)
-    ]
-    expected_word_indices = expected_word_indices1 + expected_word_indices2
-    print(word)
-    print((18,14,13,9) in expected_word_indices1)
-
-    wmatch_pos_dict = {}
-    # build word guesses for all possible computed positions 
-    for r1, c1, r2, c2 in expected_word_indices:
-        if r1 < r2:
-            irow = [i for i in range(r1, r2)]
-            icol = [i for i in range(c1, c2)]
-            wguess = "".join([label_grid[r][c] for r, c in zip(irow, icol)])
-            wmatch_pos_dict[wguess] = r1, c1, (r2 - 1), (c2 - 1)
-        else:
-            irow = [i for i in range(r1, r2, -1)]
-            icol = [i for i in range(c1, c2, -1)]
-            wguess = "".join([label_grid[r][c] for r, c in zip(irow, icol)])
-            wmatch_pos_dict[wguess] = r1, c1, (r2 + 1), (c2 + 1)
-
-    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
-    cm_pos = wmatch_pos_dict[closest_match]
-    return cm_pos, cm_score, closest_match
 
 
 def search_directions(word: str, label_grid: np.ndarray):
@@ -513,6 +410,7 @@ def search_directions(word: str, label_grid: np.ndarray):
         
         # build the current word guess
         wguess = "".join([label_grid[r][c] for r, c in zip(irow, icol)])
+        # update dict, any repeated guess will be overwritten
         wmatch_pos_dict[wguess] = pos
 
     closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
