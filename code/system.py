@@ -15,6 +15,8 @@ from itertools import combinations, permutations, product
 from utils import utils
 from utils.utils import Puzzle
 
+from random import choice
+
 
 # The required maximum number of dimensions for feature vectors.
 N_DIMENSIONS = 20
@@ -258,7 +260,7 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
     fvectors_train = np.array(model["fvectors_train"])
     labels_train = np.array(model["labels_train"])
 
-    K = 3 # int(math.sqrt(fvectors_test.shape[0])) # 9 gives 57% for low quality
+    K = 9 # int(math.sqrt(fvectors_test.shape[0])) # 9 gives 57% for low quality
 
     x = np.dot(fvectors_test, fvectors_train.transpose())
     mod_test = np.sqrt(
@@ -286,133 +288,141 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
 
 def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]:
     """
-    Search for words in the grid of classified letter labels. Letter labels
-    are passed in 2D array. You should return (start_row, start_col, end_row, end_col)
-    for each word
-
-    Might need the model dict?
+    Search for word in the grid of the previously classified letter labels. 
 
     Args:
-        labels (np.ndarray) : 2D array that stores the character in each square 
-                              of the wordsearch puzzle.
-        words (list[str]) : A list of words to find in the wordsearch puzzle.
+        labels (np.ndarray) : 2D array that stores a classified letter in each 
+                              square of the wordsearch puzzle.
+        words (list[str]) : List of words to be found in the word-search puzzle.
         model (dict) : The model parameters learned during training.
 
     Returns:
-        list[tuple]: A list of four-element tuples indicating the word positions.
+        words_pos (list[tuple]): List of four-element tuples indicating each 
+                                 word's position in the puzzle grid.
     """
     words = [w.upper() for w in words]
     words_pos = []
-    wpos_score_dict = {}
 
-    # search for words using separate approaches: horizontal, vertical, diagonal
-    # select the one with the highest score
     for word in words:
-        # print(word)
-        # get best match for row
-        # r_pos, r_score = search_rows(word, labels)
-        # # get best match for column
-        # c_pos, c_score = search_cols(word, labels)
-        # # wpos_score_dict[r_pos] = r_score
-        # # wpos_score_dict[c_pos] = c_score
-        # # get best match for diagonal
-        # d_pos, d_score, dcm = search_diag(word, labels)
-
-        # if max(r_score, c_score, d_score) == r_score:
-        #     words_pos.append(r_pos)
-        # elif max(r_score, c_score, d_score) == c_score:
-        #     words_pos.append(c_pos)
-        # else:
-        #     print(f"searched word - {word} - found - {dcm} - score: {d_score} with pos: {d_pos}")
-        #     words_pos.append(d_pos)
-
-        pos = search_directions(word, labels)
+        pos = search_word_pos(word, labels)
         words_pos.append(pos)
-        # if r_score > c_score:
-        #     words_pos.append(r_pos)
-        # else:
-        #     words_pos.append(c_pos)
-    print(labels)
-        # words_pos.append(r_pos)
-    # print(words_pos)
-    # print('here')
 
     return words_pos
 
 
-def find_closest_match(searched_word, word_guesses):
+def search_word_pos(word: str, label_grid: np.ndarray) -> tuple:
     """
+    Search for a targetted word in all directions (i.e. row, column, diagonal).
+    The algortihm starts by computing all possible starting and ending positions 
+    of a word in the puzzle grid (label grid) by matching the length of the 
+    targetted word. Then, each match is ranked by their correctness (i.e. how many
+    letters are the same as in the searched word) and the highest scoring match 
+    is returned.
 
-    find the closest match for a word
+    Args:
+        word (str) : target word to be found in the label grid.
+        label_grid (np.ndarray) : the grid of classified labels that construct the
+                                  puzzle grid for the word search game.
 
-    rank each word by levenshtein distance (used in search engines)
-    to find a match that needs the least number of operations to turn
-    it into the searched word
-
-    word : word to be matched
-    word_guesses : list of guessed words that are matching the length of word
-
-    closest_match : closest match of the searched word
-    score : 
+    Returns:
+        cm_pos (tuple) : the position in the label grid of a string that is the closest
+                         match for the target word; the position is stored in a tuple
+                         in the format (r1, c1, r2, c2), where r1 and c1 determine the
+                         position (in row and column) of the first letter, and r2 and c2
+                         determine th position of the ending letter of the word.
     """
-    # build a dictionary to rank each guess
-    rank_wguess_dict = {}
-
-    # rank each guess checking how many letters are correct
-    for wg in word_guesses:
-        wg_score = sum(wg[i] == searched_word[i] for i in range(len(wg)))
-        rank_wguess_dict[wg] = wg_score
-    
-    closest_match = max(rank_wguess_dict, key=rank_wguess_dict.get)
-    cm_score = rank_wguess_dict[closest_match]
-    print([rank_wguess_dict[i] for i in rank_wguess_dict.keys() if rank_wguess_dict[i] == cm_score])
-    return closest_match, cm_score
-
-
-def search_directions(word: str, label_grid: np.ndarray):
-    """
-    Search for a word through all directions at once: row, column, diagonal.
-    """
+    wlen = len(word)
     nrow, ncol = label_grid.shape
-    # all possible starting and ending index for row
+    # Compute all possible starting and ending indices of any string in a label
+    # grid for both row and column of the label grid using Cartesian Product.
     irows = [r for r in product([ir for ir in range(nrow)], repeat=2)]
-    # all possible starting and ending index for column
     icols = [c for c in product([ic for ic in range(ncol)], repeat=2)]
 
-    # all possible positions of the word in the grid (in all directions)
-    # found by matching the word length
+    # Combine above to find all possible staring and ending positions of the 
+    # searched word in the grid considering all directions (diagonals, rows,
+    # columns) in which the word might be placed and matching the word length.
     expected_word_pos = [
     (r1, c1, r2, c2) for c1, c2 in icols for r1, r2 in irows
-        if (abs(r1 - r2) == (len(word) - 1) and abs(c1 - c2) == (len(word) - 1))   # diag
-           or (abs(r1 - r2) == (len(word) - 1) and c1 == c2)                       # col
-           or (abs(c1 - c2) == (len(word) - 1) and r1 == r2)                       # row
+        if (abs(r1 - r2) == (wlen - 1) and abs(c1 - c2) == (wlen - 1))   # diag
+           or (abs(r1 - r2) == (wlen - 1) and c1 == c2)                  # col
+           or (abs(c1 - c2) == (wlen - 1) and r1 == r2)                  # row
     ]
-    wmatch_pos_dict = {}
 
+    # Create all possible word guesses from subsequent elements in the grid. Match
+    # the target word length and track the positions of each computed guess in dict.
+    wmatch_pos_dict = {}
     for pos in expected_word_pos:
         r1, c1, r2, c2 = pos
 
-        # set up row coords list 
-        if r1 < r2:
-            irow = [i for i in range(r1, (r2 + 1))]
-        elif r1 > r2:
-            irow = [i for i in range(r1, (r2 - 1), -1)]
-        else:
-            irow = [r1] * len(word)
-
-        # set up col coords list
-        if c1 < c2:
-            icol = [i for i in range(c1, (c2 + 1))]
-        elif c1 > c2:
-            icol = [i for i in range(c1, (c2 - 1), -1)]
-        else:
-            icol = [c1] * len(word)
-        
-        # build the current word guess
-        wguess = "".join([label_grid[r][c] for r, c in zip(irow, icol)])
-        # update dict, any repeated guess will be overwritten
+        # Set up list of row and column coordinates of each letter of a word guess.
+        # And construct a word guess accordingly.
+        irow = setup_coords(r1, r2, wlen)
+        icol = setup_coords(c1, c2, wlen)
+        wguess = "".join([label_grid[r, c] for r, c in zip(irow, icol)])
         wmatch_pos_dict[wguess] = pos
 
-    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
+    # Find closest match among all, then return its coordinates by matching the key.
+    closest_match = find_closest_match(word, wmatch_pos_dict.keys())
     cm_pos = wmatch_pos_dict[closest_match]
     return cm_pos
+
+
+def setup_coords(coor1, coor2, wlen) -> List[int]:
+    """
+    Set up list of start to end coordinates in a row or column of the label grid.
+
+    Args:
+        coor1 (int) :
+        coor2 (int) :
+        wlen (int) : Length of the searched word.
+
+    Returns:
+        icoords (List[int]) : 
+    """
+    icoords = []
+    if coor1 < coor2:
+        icoords = [i for i in range(coor1, (coor2 + 1))]
+    elif coor1 > coor2:
+        icoords = [i for i in range(coor1, (coor2 - 1), -1)]
+    else:
+        icoords = [coor1] * wlen
+    return icoords
+
+
+def find_closest_match(searched_word: str, word_guesses: List[str]) -> str:
+    """
+    Find the closest match for a target word by comparing how many letters in each
+    word guess from the list are the same as in the searched word. The guess with 
+    the highest scoring comparison is returned. In case of more than one guesses
+    having the same max score, a random one out of the highest scoring is returned.
+
+    Args:
+        searched_word (str) : Target word to be matched.
+        word_guesses List[str] : List of guessed words based on sequences of letters
+                                 in the label grid in all directions; each guess 
+                                 match the length of the target.
+
+    Returns:
+        closest_match : closest match to the searched word found by the max score.
+    """
+    wguess_score_dict = {}
+
+    # For each guess, calculate how many letters in it for each position match 
+    # the ones of the target word.
+    for wg in word_guesses:
+        wg_score = sum(
+            wg[i] == searched_word[i] for i in range(len(wg))
+        )
+        wguess_score_dict[wg] = wg_score
+
+    # Find maximum score value. Select all keys that have max_score as their value.
+    max_wg_score = max(wguess_score_dict.values())
+    closest_matches = [wg for wg, s in wguess_score_dict.items() if s == max_wg_score]
+
+    # If there are more than 1 keys with the max value. Randomize the procedure and select
+    # a random key with the max score. Otherwise, return the single key matching the max.
+    if len(closest_matches) > 1:
+        closest_match = np.random.choice(closest_matches)
+        return closest_match
+    else:
+        return closest_matches[0]
