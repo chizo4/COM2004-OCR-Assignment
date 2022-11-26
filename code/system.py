@@ -11,7 +11,7 @@ import numpy as np
 import scipy
 from typing import List
 from collections import Counter
-from itertools import combinations, permutations
+from itertools import combinations, permutations, product
 from utils import utils
 from utils.utils import Puzzle
 
@@ -308,23 +308,34 @@ def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]
     # search for words using separate approaches: horizontal, vertical, diagonal
     # select the one with the highest score
     for word in words:
+        # print(word)
         # get best match for row
-        r_pos, r_score = search_rows(word, labels)
-        # get best match for column
-        c_pos, c_score = search_cols(word, labels)
-        # wpos_score_dict[r_pos] = r_score
-        # wpos_score_dict[c_pos] = c_score
-        # get best match for diagonal
-        # d_pos, d_score = search_diag(word, labels)
+        # r_pos, r_score = search_rows(word, labels)
+        # # get best match for column
+        # c_pos, c_score = search_cols(word, labels)
+        # # wpos_score_dict[r_pos] = r_score
+        # # wpos_score_dict[c_pos] = c_score
+        # # get best match for diagonal
+        # d_pos, d_score, dcm = search_diag(word, labels)
 
-        if r_score > c_score:
-            words_pos.append(r_pos)
-        else:
-            words_pos.append(c_pos)
+        # if max(r_score, c_score, d_score) == r_score:
+        #     words_pos.append(r_pos)
+        # elif max(r_score, c_score, d_score) == c_score:
+        #     words_pos.append(c_pos)
+        # else:
+        #     print(f"searched word - {word} - found - {dcm} - score: {d_score} with pos: {d_pos}")
+        #     words_pos.append(d_pos)
 
+        pos = search_directions(word, labels)
+        words_pos.append(pos)
+        # if r_score > c_score:
+        #     words_pos.append(r_pos)
+        # else:
+        #     words_pos.append(c_pos)
+    print(labels)
         # words_pos.append(r_pos)
-    print(words_pos)
-    print('here')
+    # print(words_pos)
+    # print('here')
 
     return words_pos
 
@@ -423,4 +434,87 @@ def search_diag(word: str, label_grid: np.ndarray):
     """
     Search through diagonals (tough).
     """
-    pass
+    nrow, ncol = label_grid.shape
+    # all possible indices of rows and cols in the grid.
+    irows = [irow for irow in range(nrow)]
+    icols = [icol for icol in range(ncol)]
+    # print(irows)
+    # compute all possible positions of the input word in the rows and cols of
+    # the label grid that match the length of the matched word (n)
+    expected_word_indices1 = [
+        (r1, c1, r2, c2) for c1, c2 in permutations(icols, 2) for r1, r2 in permutations(irows, 2) 
+            if abs(r1 - r2) == len(word) and abs(c1 - c2) == len(word)
+    ]
+    expected_word_indices2 = [
+        (r1, c1, r2, c2) for r1, r2 in permutations(irows, 2) for c1, c2 in permutations(icols, 2)
+            if abs(r1 - r2) == len(word) and abs(c1 - c2) == len(word)
+    ]
+    expected_word_indices = expected_word_indices1 + expected_word_indices2
+    print(word)
+    print((18,14,13,9) in expected_word_indices1)
+
+    wmatch_pos_dict = {}
+    # build word guesses for all possible computed positions 
+    for r1, c1, r2, c2 in expected_word_indices:
+        if r1 < r2:
+            irow = [i for i in range(r1, r2)]
+            icol = [i for i in range(c1, c2)]
+            wguess = "".join([label_grid[r][c] for r, c in zip(irow, icol)])
+            wmatch_pos_dict[wguess] = r1, c1, (r2 - 1), (c2 - 1)
+        else:
+            irow = [i for i in range(r1, r2, -1)]
+            icol = [i for i in range(c1, c2, -1)]
+            wguess = "".join([label_grid[r][c] for r, c in zip(irow, icol)])
+            wmatch_pos_dict[wguess] = r1, c1, (r2 + 1), (c2 + 1)
+
+    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
+    cm_pos = wmatch_pos_dict[closest_match]
+    return cm_pos, cm_score, closest_match
+
+
+def search_directions(word: str, label_grid: np.ndarray):
+    """
+    Search for a word through all directions at once: row, column, diagonal.
+    """
+    nrow, ncol = label_grid.shape
+    # all possible starting and ending index for row
+    irows = [r for r in product([ir for ir in range(nrow)], repeat=2)]
+    # all possible starting and ending index for column
+    icols = [c for c in product([ic for ic in range(ncol)], repeat=2)]
+
+    # all possible positions of the word in the grid (in all directions)
+    # found by matching the word length
+    expected_word_pos = [
+    (r1, c1, r2, c2) for c1, c2 in icols for r1, r2 in irows
+        if (abs(r1 - r2) == (len(word) - 1) and abs(c1 - c2) == (len(word) - 1))   # diag
+           or (abs(r1 - r2) == (len(word) - 1) and c1 == c2)                       # col
+           or (abs(c1 - c2) == (len(word) - 1) and r1 == r2)                       # row
+    ]
+    wmatch_pos_dict = {}
+
+    for pos in expected_word_pos:
+        r1, c1, r2, c2 = pos
+
+        # set up row coords list 
+        if r1 < r2:
+            irow = [i for i in range(r1, (r2 + 1))]
+        elif r1 > r2:
+            irow = [i for i in range(r1, (r2 - 1), -1)]
+        else:
+            irow = [r1] * len(word)
+
+        # set up col coords list
+        if c1 < c2:
+            icol = [i for i in range(c1, (c2 + 1))]
+        elif c1 > c2:
+            icol = [i for i in range(c1, (c2 - 1), -1)]
+        else:
+            icol = [c1] * len(word)
+        
+        # build the current word guess
+        wguess = "".join([label_grid[r][c] for r, c in zip(irow, icol)])
+        wmatch_pos_dict[wguess] = pos
+
+    closest_match, cm_score = find_closest_match(word, wmatch_pos_dict.keys())
+    cm_pos = wmatch_pos_dict[closest_match]
+    return cm_pos
