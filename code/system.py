@@ -11,11 +11,9 @@ import numpy as np
 import scipy
 from typing import List
 from collections import Counter
-from itertools import combinations, permutations, product
+from itertools import combinations, product
 from utils import utils
 from utils.utils import Puzzle
-
-from random import choice
 
 
 # The required maximum number of dimensions for feature vectors.
