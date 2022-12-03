@@ -1,0 +1,18 @@
+# Word Search assignment report
+(Replace the square-bracketed text with your own text. *Leave everything else unchang
+## Feature Extraction (Max 200 Words)
+[Describe and justify the design of your feature extraction. Note, feature extraction
+## Letter Classifier (Max 200 Words)
+[Describe and justify the design of your classifier and any associated classifier tra
+## Word Finder (Max 200 Words)
+[Describe the approach that you have taken for finding the words after the letters ha
+## Performance
+My percentage correctness scores (to 1 decimal place) for the development data are as
+Clean data:
+- Percentage Letters Correct: [Insert percentage here, e.g. 98.1% - remove brackets]
+- Percentage Words Correct: [Insert percentage here, e.g. 98.0% - remove brackets]
+Noisy data:
+- Percentage Letters Correct: [Insert percentage here, e.g. 83.3% - remove brackets]
+- Percentage Words Correct: [Insert percentage here, e.g. 58.1% - remove brackets]
+## Other information (Optional, Max 100 words)
+[Optional: highlight any significant aspects of your system that are NOT covered i

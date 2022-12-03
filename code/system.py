@@ -7,11 +7,11 @@ Development date: 10/2022-12/2022
 """
 
 
-import numpy as np
-import scipy
 from typing import List
 from collections import Counter
 from itertools import combinations, product
+import numpy as np
+import scipy
 from utils import utils
 from utils.utils import Puzzle
 
@@ -42,7 +42,7 @@ def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
     """
     Perform dimensionality reduction on the set of feature vector down
     to specified N_DIMENSIONS (i.e. 20) using the best N (i.e. 20 again) 
-    eigenvectors (principal component axes) that were selected during 
+    principal component axes (eigenvetors) that were selected during
     the training stage using Principal Component Analysis approach.
 
     Essentially, the function takes raw feature vectors of M dimensions and
@@ -55,7 +55,7 @@ def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
     Returns:
         reduced_data (np.ndarray) : Feature vectors reduced to N_DIMENSIONS.
     """
-    # Perform mean normalization, then use eigenvectors to to project 
+    # Perform mean normalization, then use eigenvectors to to project
     # the data into the N principal component axes (linear transform).
     mean_train = model["mean_train"]
     eigv_train = model["eigv_train"]
@@ -65,7 +65,7 @@ def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
 
 def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) -> dict:
     """
-    Perform the classifier's training stage by processing the training data. 
+    Perform the classifier's training stage by processing the training data.
     Start by computing 40 eigenvectors for 40 highest eigenvalues, then use them
     to perform a feature selection, i.e. to select the 20 most useful eiegenvectors
     calling a function dedicated for this task. Finally, after learning the model 
@@ -109,45 +109,6 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     fvectors_train_reduced = reduce_dimensions(fvectors_train, model)
     model["fvectors_train"] = fvectors_train_reduced.tolist()
     return model
-
-
-def binarize_data(fvectors: np.ndarray) -> np.ndarray:
-    """
-    USEFUL CONCEPT IN CV - BUT NOT USEFUL IN TRAINING STAGE!
-
-    Data pre-processing method based on the concept of binarization.
-    It means that a matrix of pixels of a grayscale image is converted into 
-    a binarized matrix, where each pixel is either assigned to the max value
-    in the dataset (i.e. the most white), or to the min value, which marks 
-    the blackest pixel. The classification of a pixel as either black or white
-    is based on the value of thresh, which is...
-
-    Args:
-        fvectors (np.ndarray): Unbinarized feature vectors, i.e. in grayscale format.
-
-    Returns:
-        fvectors_binarized (np.ndarray): Binarized feature vectors, i.e. each pixel
-                                         is converted either to black (min value 
-                                         in data), or white (max value in data).
-    """
-    # matplotlib.use("TkAgg")
-    imgold = fvectors[25, :].reshape(20, 20)
-    # plt.imshow(imgold, cmap="gray")
-    # plt.show()
-    for y in range(fvectors.shape[0]):
-        thresh = np.mean(fvectors[y, :]) * 1.5
-        black = np.min(fvectors[y, :])
-        white = np.max(fvectors[y, :])
-        fvectors[y, :] = np.where(
-            fvectors[y, :] > thresh, white, fvectors[y, :]
-        )
-        fvectors[y, :] = np.where(
-            fvectors[y, :] <= thresh, black, fvectors[y, :]
-        )
-    imgnew = fvectors[25, :].reshape(20, 20)
-    # plt.imshow(imgnew, cmap="gray")
-    # plt.show()
-    return fvectors
 
 
 def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray:
@@ -253,7 +214,6 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
     # mean = np.mean(fvectors_test, axis=1)
     # std = np.std(fvectors_test, axis=1)
     # signal_to_noise = np.where(std == 0, 0, mean / std)
-    # print(np.mean(signal_to_noise))
 
     fvectors_train = np.array(model["fvectors_train"])
     labels_train = np.array(model["labels_train"])
@@ -333,17 +293,17 @@ def search_word_pos(word: str, label_grid: np.ndarray) -> tuple:
     nrow, ncol = label_grid.shape
     # Compute all possible starting and ending indices of any string in a label
     # grid for both row and column of the label grid using Cartesian Product.
-    irows = [r for r in product([ir for ir in range(nrow)], repeat=2)]
-    icols = [c for c in product([ic for ic in range(ncol)], repeat=2)]
+    irows = [r for r in product(list(range(nrow)), repeat=2)]
+    icols = [c for c in product(list(range(ncol)), repeat=2)]
 
     # Combine above to find all possible staring and ending positions of the 
     # searched word in the grid considering all directions (diagonals, rows,
     # columns) in which the word might be placed and matching the word length.
     expected_word_pos = [
-    (r1, c1, r2, c2) for c1, c2 in icols for r1, r2 in irows
-        if (abs(r1 - r2) == (wlen - 1) and abs(c1 - c2) == (wlen - 1))   # diag
-           or (abs(r1 - r2) == (wlen - 1) and c1 == c2)                  # col
-           or (abs(c1 - c2) == (wlen - 1) and r1 == r2)                  # row
+        (r1, c1, r2, c2) for c1, c2 in icols for r1, r2 in irows
+            if (abs(r1 - r2) == (wlen - 1) and abs(c1 - c2) == (wlen - 1))    # diag
+                or (abs(r1 - r2) == (wlen - 1) and c1 == c2)                  # col
+                or (abs(c1 - c2) == (wlen - 1) and r1 == r2)                  # row
     ]
 
     # Create all possible word guesses from subsequent elements in the grid. Match
@@ -379,9 +339,9 @@ def setup_coords(coor1, coor2, wlen) -> List[int]:
     """
     icoords = []
     if coor1 < coor2:
-        icoords = [i for i in range(coor1, (coor2 + 1))]
+        icoords = list(range(coor1, (coor2 + 1)))
     elif coor1 > coor2:
-        icoords = [i for i in range(coor1, (coor2 - 1), -1)]
+        icoords = list(range(coor1, (coor2 - 1), -1))
     else:
         icoords = [coor1] * wlen
     return icoords
@@ -422,5 +382,4 @@ def find_closest_match(searched_word: str, word_guesses: List[str]) -> str:
     if len(closest_matches) > 1:
         closest_match = np.random.choice(closest_matches)
         return closest_match
-    else:
-        return closest_matches[0]
+    return closest_matches[0]
