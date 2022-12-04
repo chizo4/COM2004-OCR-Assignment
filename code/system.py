@@ -19,6 +19,9 @@ from utils.utils import Puzzle
 # The required maximum number of dimensions for feature vectors.
 N_DIMENSIONS = 20
 
+# The K value used in K-Nearest-Neigbor classification process.
+KNN_VAL = 9
+
 
 def load_puzzle_feature_vectors(image_dir: str, puzzles: List[Puzzle]) -> np.ndarray:
     """
@@ -42,7 +45,7 @@ def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
     """
     Perform dimensionality reduction on the set of feature vector down
     to specified N_DIMENSIONS (i.e. 20) using the best N (i.e. 20 again) 
-    principal component axes (eigenvetors) that were selected during
+    principal component axes (eigenvectors) that were selected during
     the training stage using Principal Component Analysis approach.
 
     Essentially, the function takes raw feature vectors of M dimensions and
@@ -67,11 +70,11 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     """
     Perform the classifier's training stage by processing the training data.
     Start by computing 40 eigenvectors for 40 highest eigenvalues, then use them
-    to perform a feature selection, i.e. to select the 20 most useful eiegenvectors
+    to perform a feature selection, i.e. to select the 20 most useful eigenvectors
     calling a function dedicated for this task. Finally, after learning the model 
     parameters using the Prinicipal Component Analysis approach, store the most valuable
     information (i.e. labels, mean, top eiegenvectors, reduced training feature vectors) 
-    in a model dicionary in order to use it as a basis for the latter classification. 
+    in a model dicionary in order to use it as a basis for the later classification. 
 
     Args:
         fvectors_train (np.ndarray) : Training data feature vectors (stored as rows).
@@ -165,8 +168,8 @@ def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray
     sorted_desc_weigh_eigv_dict = dict(
         sorted(weigh_eigv_dict.items(), key=lambda item: item[1])[::-1]
     )
-    nbest_eigv_indices = list(sorted_desc_weigh_eigv_dict.keys())
-    return nbest_eigv_indices[0:N]
+    nbest_eigv_indices = list(sorted_desc_weigh_eigv_dict.keys())[0:N]
+    return nbest_eigv_indices
 
 
 def calc_divergence(fvectors_class1: np.ndarray, fvectors_class2: np.ndarray) -> np.ndarray:
@@ -210,53 +213,49 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
         test_labels (List[str]): A list of classified class labels; one class 
                                  label (alphabet letter 'A'-'Z') per feature vector.
     """
-    # SIGNAL TO NOISE???
-    # mean = np.mean(fvectors_test, axis=1)
-    # std = np.std(fvectors_test, axis=1)
-    # signal_to_noise = np.where(std == 0, 0, mean / std)
-
     fvectors_train = np.array(model["fvectors_train"])
     labels_train = np.array(model["labels_train"])
 
-    K = 9 # int(math.sqrt(fvectors_test.shape[0])) # 9 gives 57% for low quality
-
-    x = np.dot(fvectors_test, fvectors_train.transpose())
-    mod_test = np.sqrt(
-        np.sum(fvectors_test * fvectors_test, axis=1)
-    )
-    mod_train = np.sqrt(
-        np.sum(fvectors_train * fvectors_train, axis=1)
-    )
-    # Calculate the cosine distance.
-    dist = x / np.outer(mod_test, mod_train.transpose())
-    # Select K-nearest neighbors (found by selecting 5 smallest distances for each sample). 
-    k_nearest_indices = np.argsort((-dist), axis=1)[:, 0:K]
-    # k_nearest_vals = np.sort((-dist), axis=1)[:, 0:K]
+    
+    # dist = scipy.spatial.distance.cdist(fvectors_test, fvectors_train, 'seuclidean', V=None)
+    dist = scipy.spatial.distance.cdist(fvectors_test, fvectors_train, 'correlation')
+    # get k smallest distances
+    k_nearest_dists = np.sort((dist), axis=1)[:, 0:KNN_VAL]
+    # get k nearest labels (based on sorted indices)
+    k_nearest_labels = [labels_train[i] for i in np.argsort((dist), axis=1)[:, 0:KNN_VAL]]
     test_labels = []
 
-    # WEIGHTED KNN??
-    for i in k_nearest_indices:
-        k_labels = labels_train[i]
-        labels_counted = Counter(k_labels)
-        kn_best = max(labels_counted, key=labels_counted.get)
-        test_labels.append(kn_best)
+    for i in range(k_nearest_dists.shape[0]):
+        curr_labels = k_nearest_labels[i]
+        curr_dists = k_nearest_dists[i]
+        curr_dict = {}
+
+        for l, d in zip(curr_labels, curr_dists):
+            if not l in curr_dict.keys():
+                curr_dict[l] =  1 / (d * d)
+            else:
+                curr_dict[l] +=  1 / (d * d)
+
+        best_label = max(curr_dict, key=curr_dict.get)
+        test_labels.append(best_label)
 
     return test_labels
 
 
 def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]:
     """
-    Search for word in the grid of the previously classified letter labels. 
+    Search for words in the puzzle grid of the classified letter labels. For each
+    word, use the function that searches for the word in all the directions.
 
     Args:
         labels (np.ndarray) : 2D array that stores a classified letter in each 
-                              square of the wordsearch puzzle.
+                              square of the wordsearch puzzle grid.
         words (list[str]) : List of words to be found in the word-search puzzle.
-        model (dict) : The model parameters learned during training.
+        model (dict) : The essential model parameters learned during training.
 
     Returns:
         words_pos (list[tuple]): List of four-element tuples indicating each 
-                                 word's position in the puzzle grid.
+                                 word's start and end position in the puzzle grid.
     """
     words = [w.upper() for w in words]
     words_pos = []
@@ -351,7 +350,7 @@ def find_closest_match(searched_word: str, word_guesses: List[str]) -> str:
     """
     Find the closest match for a target word by comparing how many letters in each
     word guess from the list are the same as in the searched word. The guess with 
-    the highest scoring comparison is returned. In case of more than one guesses
+    the lowest hamming distance is returned. In case of more than one guesses
     having the same max score, a random one out of the highest scoring is returned.
 
     Args:
@@ -365,21 +364,17 @@ def find_closest_match(searched_word: str, word_guesses: List[str]) -> str:
     """
     wguess_score_dict = {}
 
-    # For each guess, calculate how many letters in it for each position match 
-    # the ones of the target word.
+    # For each guess, calculate hamming distance.
     for wg in word_guesses:
-        wg_score = sum(
-            wg[i] == searched_word[i] for i in range(len(wg))
-        )
+        wg_score = scipy.spatial.distance.hamming(list(wg), list(searched_word))
         wguess_score_dict[wg] = wg_score
 
-    # Find maximum score value. Select all keys that have max_score as their value.
-    max_wg_score = max(wguess_score_dict.values())
+    # Find minimum hamming distance value. Select all keys that have max_score as their value.
+    max_wg_score = min(wguess_score_dict.values())
     closest_matches = [wg for wg, s in wguess_score_dict.items() if s == max_wg_score]
 
     # If there are more than 1 keys with the max value. Randomize the procedure and select
     # a random key with the max score. Otherwise, return the single key matching the max.
     if len(closest_matches) > 1:
-        closest_match = np.random.choice(closest_matches)
-        return closest_match
+        return np.random.choice(closest_matches)
     return closest_matches[0]
