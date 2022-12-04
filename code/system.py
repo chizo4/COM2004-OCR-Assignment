@@ -18,6 +18,10 @@ from utils.utils import Puzzle
 # The required maximum number of dimensions for feature vectors.
 N_DIMENSIONS = 20
 
+# Minimum data frequency of a sample of a particular class to be considered
+# in the feature selection process for PCA.
+MIN_DATA_FREQ = 10
+
 # The K value used in K-Nearest-Neigbor classification process.
 KNN_VAL = 9
 
@@ -138,7 +142,6 @@ def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray
     Returns:
         nbest_eigv_indices (np.ndarray) : Indices of the selected top N eiegenvectors.
     """
-    MIN_DATA_FREQ = 10
     weigh_eigv_dict = {k: 0 for k in range(pca_data.shape[1])}
     labels_list = np.array(model["labels_train"])
     labels_set = sorted(set(labels_list))
@@ -286,7 +289,7 @@ def search_word_pos(word: str, label_grid: np.ndarray) -> tuple:
                          position (in row and column) of the first letter, and r2 and c2
                          determine th position of the ending letter of the word.
     """
-    wlen = len(word)
+    w_len = len(word)
     nrow, ncol = label_grid.shape
     # Compute all possible starting and ending indices of any string in a label
     # grid for both row and column of the label grid using Cartesian Product.
@@ -298,23 +301,23 @@ def search_word_pos(word: str, label_grid: np.ndarray) -> tuple:
     # columns) in which the word might be placed and matching the word length.
     expected_word_pos = [
         (r1, c1, r2, c2) for c1, c2 in icols for r1, r2 in irows
-            if (abs(r1 - r2) == (wlen - 1) and abs(c1 - c2) == (wlen - 1))    # diag
-                or (abs(r1 - r2) == (wlen - 1) and c1 == c2)                  # col
-                or (abs(c1 - c2) == (wlen - 1) and r1 == r2)                  # row
+            if (abs(r1 - r2) == (w_len - 1) and abs(c1 - c2) == (w_len - 1))    # diag
+                or (abs(r1 - r2) == (w_len - 1) and c1 == c2)                  # col
+                or (abs(c1 - c2) == (w_len - 1) and r1 == r2)                  # row
     ]
 
     # Create all possible word guesses from subsequent elements in the grid. Match
     # the target word length and track the positions of each computed guess in dict.
     wmatch_pos_dict = {}
     for pos in expected_word_pos:
-        r1, c1, r2, c2 = pos
+        r_start, c_start, r_end, c_end = pos
 
         # Set up list of row and column coordinates of each letter of a word guess.
         # And construct a word guess accordingly.
-        irow = setup_coords(r1, r2, wlen)
-        icol = setup_coords(c1, c2, wlen)
-        wguess = "".join([label_grid[r, c] for r, c in zip(irow, icol)])
-        wmatch_pos_dict[wguess] = pos
+        irow = setup_coords(r_start, r_end, w_len)
+        icol = setup_coords(c_start, c_end, w_len)
+        w_guess = "".join([label_grid[r, c] for r, c in zip(irow, icol)])
+        wmatch_pos_dict[w_guess] = pos
 
     # Find closest match among all, then return its coordinates by matching the key.
     closest_match = find_closest_match(word, wmatch_pos_dict.keys())
@@ -363,9 +366,9 @@ def find_closest_match(searched_word: str, word_guesses: List[str]) -> str:
     wguess_score_dict = {}
 
     # For each guess, calculate hamming distance.
-    for wg in word_guesses:
-        wg_score = scipy.spatial.distance.hamming(list(wg), list(searched_word))
-        wguess_score_dict[wg] = wg_score
+    for w_guess in word_guesses:
+        wg_score = scipy.spatial.distance.hamming(list(w_guess), list(searched_word))
+        wguess_score_dict[w_guess] = wg_score
 
     # Find minimum hamming distance value. Select all keys that have max_score as their value.
     max_wg_score = min(wguess_score_dict.values())
