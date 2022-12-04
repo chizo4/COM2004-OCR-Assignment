@@ -8,7 +8,6 @@ Development date: 10/2022-12/2022
 
 
 from typing import List
-from collections import Counter
 from itertools import combinations, product
 import numpy as np
 import scipy
@@ -44,7 +43,7 @@ def load_puzzle_feature_vectors(image_dir: str, puzzles: List[Puzzle]) -> np.nda
 def reduce_dimensions(data: np.ndarray, model: dict) -> np.ndarray:
     """
     Perform dimensionality reduction on the set of feature vector down
-    to specified N_DIMENSIONS (i.e. 20) using the best N (i.e. 20 again) 
+    to specified N_DIMENSIONS (i.e. 20) using the best N (i.e. 20 again)
     principal component axes (eigenvectors) that were selected during
     the training stage using Principal Component Analysis approach.
 
@@ -71,24 +70,24 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     Perform the classifier's training stage by processing the training data.
     Start by computing 40 eigenvectors for 40 highest eigenvalues, then use them
     to perform a feature selection, i.e. to select the 20 most useful eigenvectors
-    calling a function dedicated for this task. Finally, after learning the model 
+    calling a function dedicated for this task. Finally, after learning the model
     parameters using the Prinicipal Component Analysis approach, store the most valuable
-    information (i.e. labels, mean, top eiegenvectors, reduced training feature vectors) 
-    in a model dicionary in order to use it as a basis for the later classification. 
+    information (i.e. labels, mean, top eiegenvectors, reduced training feature vectors)
+    in a model dicionary in order to use it as a basis for the later classification.
 
     Args:
         fvectors_train (np.ndarray) : Training data feature vectors (stored as rows).
         labels_train (np.ndarray) : Labels corresponding to the training feature vectors.
-    
+
     Returns:
-        model (dict) : Dictionary that stores the model of the data that was learned 
+        model (dict) : Dictionary that stores the model of the data that was learned
                        during the training stage.
     """
     model = {}
     model["labels_train"] = labels_train.tolist()
     model["mean_train"] = np.mean(fvectors_train)
 
-    # Compute covariance matrix and use it to calculate 40 
+    # Compute covariance matrix and use it to calculate 40
     # eigenvectors corresponding to the 40 greatest eigenvalues.
     cov_matrix = np.cov(fvectors_train, rowvar=0)
     N_COV = cov_matrix.shape[0]
@@ -116,18 +115,18 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
 
 def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray:
     """
-    Perform feature selection for the computed principal component axes of the 
-    training feature vectors. The selection process finds the N most useful 
-    eigenvectors out of M eiegenvectors that were passed as pca_data (note: M > N). 
+    Perform feature selection for the computed principal component axes of the
+    training feature vectors. The selection process finds the N most useful
+    eigenvectors out of M eiegenvectors that were passed as pca_data (note: M > N).
 
-    The feature selection is based on the following approach:    
+    The feature selection is based on the following approach:
     1. Iterate through a list of all possible pairs of class labels in the data set.
     2. If the criteria for the minimum data frequency (MIN_DATA_FREQ) is met,
-       then compute divergences on the current pair and select indices of the 
-       8 highest scoring eigenvectors. Furthermore, increase the value of the 
-       corresponding indices of the top scoring eigenvectors (i.e. of keys in 
+       then compute divergences on the current pair and select indices of the
+       8 highest scoring eigenvectors. Furthermore, increase the value of the
+       corresponding indices of the top scoring eigenvectors (i.e. of keys in
        weigh_eigv_dict) by the value of the minimum data frequency for current pair.
-    3. Sort the dictionary in descending order by the values and based on that select 
+    3. Sort the dictionary in descending order by the values and based on that select
        the top N keys (i.e. eigenvector indices) after testing each possible pair.
 
     Args:
@@ -162,7 +161,7 @@ def select_features_pca(pca_data: np.ndarray, N: int, model: dict) -> np.ndarray
                     weigh_eigv_dict[key] += curr_data_freq
             except ValueError:
                 continue
-    
+
     # Sort the dictionary in descending order. Retrieve the top N keys,
     # which denote the indices of the top N eiegenvectors.
     sorted_desc_weigh_eigv_dict = dict(
@@ -185,7 +184,7 @@ def calc_divergence(fvectors_class1: np.ndarray, fvectors_class2: np.ndarray) ->
     Returns:
         div12 (np.ndarray) : Vector of 1D divergence scores between two classes.
 
-    NOTE: Code implementation inspired by the one provided by 
+    NOTE: Code implementation inspired by the one provided by
           COM2004 academic staff in Lab Sheet 6.
     """
     m1 = np.mean(fvectors_class1, axis=0)
@@ -200,23 +199,22 @@ def classify_squares(fvectors_test: np.ndarray, model: dict) -> List[str]:
     """
     Classify unlabelled feature vectors... from the test data
 
-    in k selection: if max counted has several occurences then select the 
+    in k selection: if max counted has several occurences then select the
     best single one even if all are counted as one, the first element will be considered
 
     Args:
-        fvectors_test (np.ndarray) : Feature vectors of the test dataset that will 
+        fvectors_test (np.ndarray) : Feature vectors of the test dataset that will
                                      be classified (feature vectors stored as rows).
         model (dict) : Dictionary that stores the essential information learned
                        during the training stage (e.g. reduced feature vectors).
 
     Returns:
-        test_labels (List[str]): A list of classified class labels; one class 
+        test_labels (List[str]): A list of classified class labels; one class
                                  label (alphabet letter 'A'-'Z') per feature vector.
     """
     fvectors_train = np.array(model["fvectors_train"])
     labels_train = np.array(model["labels_train"])
 
-    
     # dist = scipy.spatial.distance.cdist(fvectors_test, fvectors_train, 'seuclidean', V=None)
     dist = scipy.spatial.distance.cdist(fvectors_test, fvectors_train, 'correlation')
     # get k smallest distances
@@ -248,13 +246,13 @@ def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]
     word, use the function that searches for the word in all the directions.
 
     Args:
-        labels (np.ndarray) : 2D array that stores a classified letter in each 
+        labels (np.ndarray) : 2D array that stores a classified letter in each
                               square of the wordsearch puzzle grid.
         words (list[str]) : List of words to be found in the word-search puzzle.
         model (dict) : The essential model parameters learned during training.
 
     Returns:
-        words_pos (list[tuple]): List of four-element tuples indicating each 
+        words_pos (list[tuple]): List of four-element tuples indicating each
                                  word's start and end position in the puzzle grid.
     """
     words = [w.upper() for w in words]
@@ -270,10 +268,10 @@ def find_words(labels: np.ndarray, words: List[str], model: dict) -> List[tuple]
 def search_word_pos(word: str, label_grid: np.ndarray) -> tuple:
     """
     Search for a targetted word in all directions (i.e. row, column, diagonal).
-    The algortihm starts by computing all possible starting and ending positions 
-    of a word in the puzzle grid (label grid) by matching the length of the 
+    The algortihm starts by computing all possible starting and ending positions
+    of a word in the puzzle grid (label grid) by matching the length of the
     targetted word. Then, each match is ranked by their correctness (i.e. how many
-    letters are the same as in the searched word) and the highest scoring match 
+    letters are the same as in the searched word) and the highest scoring match
     is returned.
 
     Args:
@@ -292,10 +290,10 @@ def search_word_pos(word: str, label_grid: np.ndarray) -> tuple:
     nrow, ncol = label_grid.shape
     # Compute all possible starting and ending indices of any string in a label
     # grid for both row and column of the label grid using Cartesian Product.
-    irows = [r for r in product(list(range(nrow)), repeat=2)]
-    icols = [c for c in product(list(range(ncol)), repeat=2)]
+    irows = list(product(list(range(nrow)), repeat=2))
+    icols = list(product(list(range(ncol)), repeat=2))
 
-    # Combine above to find all possible staring and ending positions of the 
+    # Combine above to find all possible staring and ending positions of the
     # searched word in the grid considering all directions (diagonals, rows,
     # columns) in which the word might be placed and matching the word length.
     expected_word_pos = [
@@ -334,7 +332,7 @@ def setup_coords(coor1, coor2, wlen) -> List[int]:
         wlen (int) : Length of the searched word.
 
     Returns:
-        icoords (List[int]) : 
+        icoords (List[int]) :
     """
     icoords = []
     if coor1 < coor2:
@@ -349,14 +347,14 @@ def setup_coords(coor1, coor2, wlen) -> List[int]:
 def find_closest_match(searched_word: str, word_guesses: List[str]) -> str:
     """
     Find the closest match for a target word by comparing how many letters in each
-    word guess from the list are the same as in the searched word. The guess with 
+    word guess from the list are the same as in the searched word. The guess with
     the lowest hamming distance is returned. In case of more than one guesses
     having the same max score, a random one out of the highest scoring is returned.
 
     Args:
         searched_word (str) : Target word to be matched.
         word_guesses List[str] : List of guessed words based on sequences of letters
-                                 in the label grid in all directions; each guess 
+                                 in the label grid in all directions; each guess
                                  match the length of the target.
 
     Returns:
