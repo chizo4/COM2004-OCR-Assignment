@@ -87,15 +87,14 @@ def process_training_data(fvectors_train: np.ndarray, labels_train: np.ndarray) 
     model["labels_train"] = labels_train.tolist()
     model["mean_train"] = np.mean(fvectors_train)
 
-    # Compute covariance matrix and use it to calculate 40
-    # eigenvectors corresponding to the 40 greatest eigenvalues.
+    # Compute cov. matrix and calculate 40 eigenvectors for the 40 greatest eigenvalues.
     cov_matrix = np.cov(fvectors_train, rowvar=0)
     n_cov = cov_matrix.shape[0]
     _, eigv = scipy.linalg.eigh(cov_matrix, eigvals=(n_cov - 40, n_cov - 1))
     eigv = np.fliplr(eigv)
 
     # Apply mean normalization for the 40 eiegenvectors, and then perform
-    # feature selection, where the best N (20) PCAs (eigenvectors) are selected.
+    # feature selection, where the best N (20) eigenvectors are selected.
     pca_data = np.dot((fvectors_train - np.mean(fvectors_train)), eigv)
     selected_eigv_indices = select_features_pca(pca_data, model)
     eigv = eigv[:, selected_eigv_indices]

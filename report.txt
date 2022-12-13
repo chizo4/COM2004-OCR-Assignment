@@ -1,18 +1,64 @@
 # Word Search assignment report
-(Replace the square-bracketed text with your own text. *Leave everything else unchang
+
 ## Feature Extraction (Max 200 Words)
-[Describe and justify the design of your feature extraction. Note, feature extraction
+
+I use PCA approach with custom feature selection for dimensionality reduction. Procedure 
+starts with computing 40 eigenvectors for 40 highest eigenvalues derived using data's 
+covariance matrix. Then, mean normalization is applied and vectors are initially reduced to 
+40 dimensions. The next stage performs the feature selection by finding 20 best eigenvectors 
+out of 40 computed. It compares all pairs of labels of the dataset; if a pair's classes meet 
+MIN_DATA_FREQ criteria, then divergence is computed between the two. Furthermore, divergence
+of a pair is used to select indices of 3 best eigenvectors of one pair and values of referring 
+indices of top scoring eigenvectors are increased in dictionary by data frequency of a pair. 
+After iterating each pair, the dictionary is sorted in descending order by its values (scores) 
+and top 20 keys are selected. They correspond to selected eigenvectors' indices. Finally, 
+data is reduced according to 20 eigenvectors and saved in model. I decided to use PCA, as it 
+works well for dataset of such size and with such correlation between samples. I select 20 
+best eigenvectors out of 40, as testing proved that some further eigenvectors (e.g. 31st) 
+are more useful features than some from the top 20.
+
 ## Letter Classifier (Max 200 Words)
-[Describe and justify the design of your classifier and any associated classifier tra
+
+
+
 ## Word Finder (Max 200 Words)
-[Describe the approach that you have taken for finding the words after the letters ha
+
+After letter classification, finding words is performed in two main steps: building word-
+guesses from generated coordinates and finding closest match to the target accordingly. 
+The word guess generation starts with computing all possible start and end positions of 
+the target word in all directions at once (diagonal, column, row). The word length is 
+considered so that each guess matches it. Furthermore, all possible word guesses are built 
+according to expected positions using neighbouring letters from the label grid. Each guess 
+is stored in a dictionary (key) with its positions (value). Then, the closest (or exact) 
+match of the word is found by computing Hamming distance between each guess and the target. 
+The guess scoring lowest distance is selected, matched with its positions in dictionary, which 
+are returned. I decided to generate all possible valid positions of a word at once, as it is 
+computationally efficient - no need for separate approaches for testing directions. Also, 
+I can be sure that no option was skipped. I applied Hamming as distance metric, as it 
+only compares how many letters in a guess are in the same position as in target. I tested 
+Levenshtein distance, but it did not fit the problem.
+
 ## Performance
-My percentage correctness scores (to 1 decimal place) for the development data are as
-Clean data:
-- Percentage Letters Correct: [Insert percentage here, e.g. 98.1% - remove brackets]
-- Percentage Words Correct: [Insert percentage here, e.g. 98.0% - remove brackets]
-Noisy data:
-- Percentage Letters Correct: [Insert percentage here, e.g. 83.3% - remove brackets]
-- Percentage Words Correct: [Insert percentage here, e.g. 58.1% - remove brackets]
+
+My percentage correctness scores (to 1 decimal place) for the development data are as follows.
+
+High quality data:
+
+- Percentage Letters Correct: 99.7%
+- Percentage Words Correct: 100.0%
+
+Low quality data:
+
+- Percentage Letters Correct: 58.7%
+- Percentage Words Correct: 63.9%
+
 ## Other information (Optional, Max 100 words)
-[Optional: highlight any significant aspects of your system that are NOT covered i
+
+I tested several image preprocessing techniques when trying to enhance letter classification. 
+I ended up not using them, still they are worth mentioning. Both could have been applied when 
+loading the puzzle feature vectors in the first step. Firstly, I tested filters provided by 
+the PIL's ImageFilter class. Interestingly, filters such as EDGE_ENHANCE,or SHARPEN, boosted
+the letter classification results for low quality images (up to 63.0%). Concurrently, they 
+decreased the high quality results (down to 95.0%). Binarization was the second attempted 
+approach. Unfortunately, this technique did not fit the problem domain and decreased the 
+results in both cases.
