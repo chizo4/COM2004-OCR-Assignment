@@ -2,7 +2,7 @@
 
 ## Feature Extraction (Max 200 Words)
 
-I use PCA approach with custom feature selection for dimensionality reduction. Procedure 
+PCA approach with custom feature selection is used for dimensionality reduction. Procedure 
 starts with computing 40 eigenvectors for 40 highest eigenvalues derived using data's 
 covariance matrix. Then, mean normalization is applied and vectors are initially reduced to 
 40 dimensions. The next stage performs the feature selection by finding 20 best eigenvectors 
@@ -19,7 +19,19 @@ are more useful features than some from the top 20.
 
 ## Letter Classifier (Max 200 Words)
 
-
+The letter classification is performed on reduced feature vectors using the weighted KNN 
+(K-Nearest-Neighbour) approach with the K value adjusted as 9. The K-value has been confirmed as 
+the best choice after testing all K's in range 1-30. In essence, the process starts by computing 
+the correlation distance between test and train feature vectors. After testing different distance 
+measures (including cosine, euclidean, square euclidean), I decided to select scipy-provided 
+"correlation", as it works effectively considering the mentioned K, reduced vectors, selected weight 
+approach, and so scores very well for both low an high quality images. The second step of the 
+classification is finding K (i.e. 9) nearest distances and matching them with their labels. 
+Furthermore, weight measure is applied to each of the K-nearest distance's class labels. It is 
+worth mentioning that the introduced weights are found by calculating the inverse square of distance 
+for each of the occurence of a class in the K-nearest distances, i.e. w = 1 / (d * d). Finally, 
+the class with the highest sum of weights is selected as the best choice for a classification 
+of a particular sample. 
 
 ## Word Finder (Max 200 Words)
 
@@ -36,7 +48,7 @@ are returned. I decided to generate all possible valid positions of a word at on
 computationally efficient - no need for separate approaches for testing directions. Also, 
 I can be sure that no option was skipped. I applied Hamming as distance metric, as it 
 only compares how many letters in a guess are in the same position as in target. I tested 
-Levenshtein distance, but it did not fit the problem.
+Levenshtein distance, but it over-complicated the problem.
 
 ## Performance
 
@@ -57,7 +69,7 @@ Low quality data:
 I tested several image preprocessing techniques when trying to enhance letter classification. 
 I ended up not using them, still they are worth mentioning. Both could have been applied when 
 loading the puzzle feature vectors in the first step. Firstly, I tested filters provided by 
-the PIL's ImageFilter class. Interestingly, filters such as EDGE_ENHANCE,or SHARPEN, boosted
+the PIL's ImageFilter class. Interestingly, filters such as EDGE_ENHANCE, or SHARPEN, boosted
 the letter classification results for low quality images (up to 63.0%). Concurrently, they 
 decreased the high quality results (down to 95.0%). Binarization was the second attempted 
 approach. Unfortunately, this technique did not fit the problem domain and decreased the 
